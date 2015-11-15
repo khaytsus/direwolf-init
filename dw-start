@@ -9,7 +9,7 @@ fi
 newppm=$ppm
 gain=32
 
-# Disabled completely
+# If the stop file exists we want things disabled completely
 
 if [ -e /opt/direwolf/stop ]; then
  date >> /tmp/dw-start.log
