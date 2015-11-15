@@ -21,4 +21,6 @@ Files:
  * direwolf.sh - Script which actually starts direwolf
 
 Each script is commented and hopefully clear what they each are doing.  I hope
-this is useful for someone else.
+this is useful for someone else.  What this repo is NOT is a stand-alone thing,
+but perhaps in the future I'll add a little more and enhance it be more of a
+one-stop way to get Direwolf using an RTL-SDR up on a Raspberry Pi.
