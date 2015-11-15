@@ -16,9 +16,9 @@ which is output to a file which is sourced at the top to be used.
 
 Files:
 
-dw-start - Script which is ran every 5 minutes
-findppm.pl - Perl script which determines the best PPM
-direwolf.sh - Script which actually starts direwolf
+ * dw-start - Script which is ran every 5 minutes
+ * findppm.pl - Perl script which determines the best PPM
+ * direwolf.sh - Script which actually starts direwolf
 
 Each script is commented and hopefully clear what they each are doing.  I hope
 this is useful for someone else.
