@@ -1,0 +1,57 @@
+#!/bin/bash
+
+# Grab ppm from our last run, but if it doesn't exist give it a sane default
+source /opt/direwolf/ppm.sh
+if [ "$ppm" == "" ]; then
+ ppm=65
+fi
+
+newppm=$ppm
+gain=32
+
+# Disabled completely
+
+if [ -e /opt/direwolf/stop ]; then
+ date >> /tmp/dw-start.log
+ echo "stop file found; not executing Direwolf" >> /tmp/dw-start.log
+ exit
+fi
+
+# Determine if we should recalibrate (hourly)
+
+mkdir -p /opt/direwolf/data/
+
+#Read Pi Temp
+temp=`/opt/vc/bin/vcgencmd measure_temp | cut -f 2 -d "=" | cut -f 1 -d \'`
+
+#Get some timestamps
+ts=`date +"%Y-%m-%d_%H-%M-%S"`
+tsmin=`date +"%M"`
+csv=/opt/direwolf/data/noaa-$temp-$ts.csv
+
+if [[ $tsmin == 00 ]]; then
+ echo "Killing direwolf to run rtl_power for 30s" >> /tmp/dw-start.log
+ killall direwolf
+ sleep 1s
+ /usr/local/bin/rtl_power -c .1 -f 162.37M:162.41M:64 -i 2 -g 10 -p $ppm -e 30s $csv >> /tmp/dw-start.log 2>&1 
+ newppm=`perl /opt/direwolf/findppm.pl $ppm 162400000 $csv 1`
+ echo "ppm=$newppm" >/opt/direwolf/ppm.sh
+ echo "Resuming Direwolf with $newppm (was $ppm)" >> /tmp/dw-start.log
+fi
+
+a=`ps -ef | grep direwolf | grep -v 'tail\|grep'`
+if [ "$a" != "" ] 
+then
+  #date >> /tmp/dw-start.log
+  #echo "Already running." >> /tmp/dw-start.log
+  exit
+fi
+
+date >> /tmp/dw-start.log
+
+echo "Start up application." >> /tmp/dw-start.log
+
+source /opt/direwolf/direwolf.sh $newppm $gain >> /tmp/dw-start.log 2>&1 &
+
+echo "-----------------------" >> /tmp/dw-start.log
+
