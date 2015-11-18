@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cal=$1
+
 # Grab ppm from our last run, but if it doesn't exist give it a sane default
 source /opt/direwolf/ppm.sh
 if [ "$ppm" == "" ]; then
@@ -7,7 +9,11 @@ if [ "$ppm" == "" ]; then
 fi
 
 newppm=$ppm
-gain=32
+gain=50
+powergain=7
+
+# NOAA1 isn't exactly the same, but close, fudge factor
+ppmfudge=4
 
 # If the stop file exists we want things disabled completely
 
@@ -19,7 +25,8 @@ fi
 
 # Determine if we should recalibrate (hourly)
 
-mkdir -p /opt/direwolf/data/
+datadir=/tmp/direwolf-data/
+mkdir -p $datadir
 
 #Read Pi Temp
 temp=`/opt/vc/bin/vcgencmd measure_temp | cut -f 2 -d "=" | cut -f 1 -d \'`
@@ -27,15 +34,19 @@ temp=`/opt/vc/bin/vcgencmd measure_temp | cut -f 2 -d "=" | cut -f 1 -d \'`
 #Get some timestamps
 ts=`date +"%Y-%m-%d_%H-%M-%S"`
 tsmin=`date +"%M"`
-csv=/opt/direwolf/data/noaa-$temp-$ts.csv
+csv=${datadir}/noaa-$temp-$ts
 
-if [[ $tsmin == 00 ]]; then
+# If a "1" is passed in, force a calibration
+if [[ $tsmin == 00 ]] || [[ "$cal" == "1" ]]; then
  echo "Killing direwolf to run rtl_power for 30s" >> /tmp/dw-start.log
- killall direwolf
+ killall rtl_fm
  sleep 1s
- /usr/local/bin/rtl_power -c .1 -f 162.37M:162.41M:64 -i 2 -g 10 -p $ppm -e 30s $csv >> /tmp/dw-start.log 2>&1 
- newppm=`perl /opt/direwolf/findppm.pl $ppm 162400000 $csv 1`
+ /usr/local/bin/rtl_power -c .1 -f 162.37M:162.41M:64 -i 2 -g $powergain -p $ppm -e 30s ${csv}.csv >> /tmp/dw-start.log 2>&1 
+ newppm=`perl /opt/direwolf/findppm.pl $ppm 162400000 ${csv}.csv 1`
+ echo "Found $newppm ppm, adding kludge of $ppmfudge" >> /tmp/dw-start.log
+ newppm=$((newppm+ppmfudge))
  echo "ppm=$newppm" >/opt/direwolf/ppm.sh
+ mv ${csv}.csv ${csv}-${ppm}oldppm-${newppm}ppm.csv
  echo "Resuming Direwolf with $newppm (was $ppm)" >> /tmp/dw-start.log
 fi
 
