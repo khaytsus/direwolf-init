@@ -1,0 +1,22 @@
+ARATE 44100
+ACHANNELS 1
+KISSPORT 8008
+AGWPORT 8000
+LOGDIR /opt/direwolf/logs/
+FIX_BITS 2
+
+# Below is all for digipeating/igate
+MYCALL MYCALL-0
+DIGIPEAT 0 IG ^WIDE[3-7]-[1-7]$ ^WIDE[12]-[12]$
+IGSERVER noam.aprs2.net
+IGLOGIN MYCALL-0 12345
+IGTXVIA 0 WIDE1-1,WIDE2-1
+IGFILTER m/50
+IGTXLIMIT 15 60
+
+# My own IGate beacon
+# I-Gate
+# Insert yours
+
+# My RF iGate Beacon
+# Insert yours

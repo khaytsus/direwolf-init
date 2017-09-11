@@ -1,68 +1,109 @@
 #!/bin/bash
 
-cal=$1
+# Script to set up on cronjob to ensure direwolf is running and has the latest
+# configuration based on updateobjects.sh running a perl script to generate current
+# aprs objects.  5 minute intervals is suggested.
 
-# Grab ppm from our last run, but if it doesn't exist give it a sane default
-source /opt/direwolf/ppm.sh
-if [ "$ppm" == "" ]; then
- ppm=65
-fi
+sdr=0
+dwpath="/opt/direwolf"
+config=${dwpath}/direwolf.conf
 
-newppm=$ppm
-gain=50
-powergain=7
-
-# NOAA1 isn't exactly the same, but close, fudge factor
-ppmfudge=4
+echo "" >> /tmp/dw-start.log
+echo "----------------------- START" >> /tmp/dw-start.log
+echo `date` >> /tmp/dw-start.log
 
 # If the stop file exists we want things disabled completely
-
-if [ -e /opt/direwolf/stop ]; then
- date >> /tmp/dw-start.log
- echo "stop file found; not executing Direwolf" >> /tmp/dw-start.log
- exit
+if [ -e ${dwpath}/stop ]; then
+	date >> /tmp/dw-start.log
+	echo "stop file found; not executing Direwolf" >> /tmp/dw-start.log
+	exit
 fi
 
-# Determine if we should recalibrate (hourly)
+if [ "$sdr" == "1" ]; then
+	cal=$1
 
-datadir=/tmp/direwolf-data/
-mkdir -p $datadir
+	# Grab ppm from our last run, but if it doesn't exist give it a sane default
+	source ${dwpath}/ppm.sh
+	if [ "$ppm" == "" ]; then
+		ppm=65
+	fi
 
-#Read Pi Temp
-temp=`/opt/vc/bin/vcgencmd measure_temp | cut -f 2 -d "=" | cut -f 1 -d \'`
+	newppm=$ppm
+	lastppm=$ppm
+	gain=50
+	powergain=7
 
-#Get some timestamps
-ts=`date +"%Y-%m-%d_%H-%M-%S"`
-tsmin=`date +"%M"`
-csv=${datadir}/noaa-$temp-$ts
+	ppmsource="NOAA1"
 
-# If a "1" is passed in, force a calibration
-if [[ $tsmin == 00 ]] || [[ "$cal" == "1" ]]; then
- echo "Killing direwolf to run rtl_power for 30s" >> /tmp/dw-start.log
- killall rtl_fm
- sleep 1s
- /usr/local/bin/rtl_power -c .1 -f 162.37M:162.41M:64 -i 2 -g $powergain -p $ppm -e 30s ${csv}.csv >> /tmp/dw-start.log 2>&1 
- newppm=`perl /opt/direwolf/findppm.pl $ppm 162400000 ${csv}.csv 1`
- echo "Found $newppm ppm, adding kludge of $ppmfudge" >> /tmp/dw-start.log
- newppm=$((newppm+ppmfudge))
- echo "ppm=$newppm" >/opt/direwolf/ppm.sh
- mv ${csv}.csv ${csv}-${ppm}oldppm-${newppm}ppm.csv
- echo "Resuming Direwolf with $newppm (was $ppm)" >> /tmp/dw-start.log
+	# NOAA1 isn't exactly the same, but close, fudge factor
+	ppmfudge=4
+
+	# Determine if we should recalibrate (hourly)
+
+	datadir=/tmp/direwolf-data/
+	mkdir -p $datadir
+
+	#Read Pi Temp
+	temp=`/opt/vc/bin/vcgencmd measure_temp | cut -f 2 -d "=" | cut -f 1 -d \'`
+
+	#Get some timestamps
+	ts=`date +"%Y-%m-%d_%H-%M-%S"`
+	tsmin=`date +"%M"`
+	csv=${datadir}/noaa-$temp-$ts
+
+	# If a "1" is passed in, force a calibration
+	if [[ $tsmin == 00 ]] || [[ "$cal" == "1" ]]; then
+		echo "Killing direwolf to run rtl_power for 30s" >> /tmp/dw-start.log
+		killall rtl_fm
+		sleep 1s
+		/usr/local/bin/rtl_power -c .1 -f 162.37M:162.41M:64 -i 2 -g $powergain -p $ppm -e 30s ${csv}.csv >> /tmp/dw-start.log 2>&1
+		newppm=`perl ${dwpath}findppm.pl $ppm 162400000 ${csv}.csv 1`
+		echo "ppm=$newppm" >${dwpath}/ppm.sh
+		sourceppm=$newppm
+		# Get the old PPM value we last used for Direwolf for information
+		prevppm=$((ppm+ppmfudge))
+		echo "Found $ppmsource at $newppm ppm (previously ${prevppm}), adding kludge of $ppmfudge" >> /tmp/dw-start.log
+		# Get the new PPM (NOAA PPM + Fudge factor
+		newppm=$((newppm+ppmfudge))
+		# Name the file with the values so we can look at it later for info
+		mv ${csv}.csv ${csv}-${lastppm}lastorigppm-${sourceppm}origppm-${prevppm}prevppm-${newppm}ppm.csv
+		echo "Resuming Direwolf with $newppm (was $prevppm)" >> /tmp/dw-start.log
+	fi
 fi
 
-a=`ps -ef | grep direwolf | grep -v 'tail\|grep'`
-if [ "$a" != "" ] 
-then
-  #date >> /tmp/dw-start.log
-  #echo "Already running." >> /tmp/dw-start.log
-  exit
+# Symlink our latest logfile so we can tail it easy
+# tail -f --follow=name ${dwpath}/logs/latest.log
+
+ln -fs `ls -t ${dwpath}/logs/????-??-??.log | head -1` ${dwpath}/logs/latest.log
+
+# Check to see if direwolf is already running
+pid=$(pgrep -cx direwolf)
+if [ $pid -gt 0 ]; then
+	# Generate a fresh direwolf configuration file
+	source ${dwpath}/updateobjects.sh >>/tmp/dw-start.log
+	# Get md5sum's of the configuration files to see if they changed
+	origsum=`md5sum ${config}.bak | cut -f 1 -d " "`
+	newsum=`md5sum ${config} | cut -f 1 -d " "`
+
+	# If changed, kill direwolf, otherwise exit script
+	if [ "$origsum" != "$newsum" ]; then
+		echo "md5sums are different [${origsum}] [${newsum}], killing direwolf" >> /tmp/dw-start.log
+	    killall direwolf
+	    sleep 5 
+	else
+		echo "Config files match, exiting" >> /tmp/dw-start.log
+		echo `date` >> /tmp/dw-start.log
+		echo "----------------------- END" >> /tmp/dw-start.log
+		exit
+	fi
 fi
 
-date >> /tmp/dw-start.log
+# Don't pass ppm/gain into direwolf.sh if we're not using an sdr
+if [ "$sdr" == "1" ]; then
+	source ${dwpath}/direwolf.sh $newppm $gain >> /tmp/dw-start.log 2>&1 &
+else
+	source ${dwpath}/direwolf.sh >> /tmp/dw-start.log 2>&1 &
+fi
 
-echo "Start up application." >> /tmp/dw-start.log
-
-source /opt/direwolf/direwolf.sh $newppm $gain >> /tmp/dw-start.log 2>&1 &
-
-echo "-----------------------" >> /tmp/dw-start.log
-
+echo `date` >> /tmp/dw-start.log
+echo "----------------------- END" >> /tmp/dw-start.log

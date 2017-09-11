@@ -15,12 +15,6 @@
 # For terse output, set terse to 1, output will just be the numeric ppm
 #  for use in scripts
 
-# Known Limitation - If you use a very wide carrier with an even strength
-# signal, this script might determine the right PPM is at the bottom of the
-# carrier.  Logically, the middle would be more appropriate.  But this script
-# simply finds the best signal and uses the best one it finds.  Narrow signals
-# and sane gain settings are suggested.
-
 # Get command-line arguments
 my $ppm = $ARGV[0];
 my $target = $ARGV[1];
@@ -54,7 +48,7 @@ splice @linearray, 0, 5;
 # Find number of elements and iterate through the array to find the highest value
 my $elements = @linearray;
 
-my $bestdb = -200;
+my $bestdb = -100;
 my $bestdbcol = 0;
 
 for (my $i=7; $i < $elements; $i++)
@@ -84,7 +78,6 @@ else
 exit;
 
 # Round a value
-sub round
-{
-	$_[0] > 0 ? int($_[0] + .5) : -int(-$_[0] + .5)
+sub round {
+  $_[0] > 0 ? int($_[0] + .5) : -int(-$_[0] + .5)
 }
