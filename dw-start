@@ -57,7 +57,7 @@ if [ "$sdr" == "1" ]; then
 		killall rtl_fm
 		sleep 1s
 		/usr/local/bin/rtl_power -c .1 -f 162.37M:162.41M:64 -i 2 -g $powergain -p $ppm -e 30s ${csv}.csv >> /tmp/dw-start.log 2>&1
-		newppm=`perl ${dwpath}findppm.pl $ppm 162400000 ${csv}.csv 1`
+		newppm=`perl ${dwpath}/findppm.pl $ppm 162400000 ${csv}.csv 1`
 		echo "ppm=$newppm" >${dwpath}/ppm.sh
 		sourceppm=$newppm
 		# Get the old PPM value we last used for Direwolf for information
